@@ -7,7 +7,7 @@ import '../src/IUniswapV2Pair.sol';
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
 
-contract StablePoolTest is Test {
+contract PoolTest is Test {
     address daiAddress = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
     address usdtAddress = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
     address factoryAddress = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
