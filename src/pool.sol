@@ -7,6 +7,8 @@ import {ERC20} from "solmate/tokens/ERC20.sol";
 import "v3-core/contracts/libraries/FullMath.sol";
 import {FixedPointMathLib} from "lib/solmate/src/utils/FixedPointMathLib.sol";
 import "forge-std/console.sol";
+import "./IUniswapV2Pair.sol";
+import "./IERC20.sol";
 
 interface IUniswapV2Pool {
     function token0() external view returns (address);
@@ -153,6 +155,7 @@ contract UniswapV2PoolTokenPrice {
 
             // Determine balance0 * balance1 = k
             k = balance0.mulDiv(balance1, 10 ** outputDecimals_);
+            console.log('k', k);
 
             uint256 poolSupply_ = pool.totalSupply();
             if (poolSupply_ == 0) revert UniswapV2_PoolSupplyInvalid(address(pool), poolSupply_);
@@ -258,6 +261,7 @@ contract UniswapV2PoolTokenPrice {
 
             // Determine balance0 * balance1 = k
             k = balance0.mulDiv(balance1, 10 ** outputDecimals_);
+            console.log('k', k);
 
             uint256 poolSupply_ = pool.totalSupply();
             if (poolSupply_ == 0) revert UniswapV2_PoolSupplyInvalid(address(pool), poolSupply_);
@@ -301,6 +305,7 @@ contract UniswapV2PoolTokenPrice {
         uint8 outputDecimals_,
         bytes calldata params_
     ) external view returns (uint256) {
+
         // Prevent overflow
         if (outputDecimals_ > MAX_DECIMALS)
             revert UniswapV2_OutputDecimalsOutOfBounds(outputDecimals_, MAX_DECIMALS);
@@ -358,11 +363,13 @@ contract UniswapV2PoolTokenPrice {
                 tokens_[lookupTokenIndex],
                 outputDecimals_
             );
+
             uint256 destinationTokenBalance = _convertERC20Decimals(
                 balances_[destinationTokenIndex],
                 tokens_[destinationTokenIndex],
                 outputDecimals_
             );
+
 
             // Get the lookupToken in terms of the destinationToken
             lookupTokenUsdPrice = destinationTokenBalance.mulDiv(
@@ -372,5 +379,25 @@ contract UniswapV2PoolTokenPrice {
         }
 
         return lookupTokenUsdPrice;
+    }
+
+    function getMyFirstPrice(address pairAddress, uint amount) public view returns(uint) {
+        IUniswapV2Pair pair = IUniswapV2Pair(pairAddress);
+        IERC20 token1 = IERC20(pair.token1());
+        (uint Res0, uint Res1,) = pair.getReserves();
+
+        // decimals
+        uint res0 = Res0*(10**token1.decimals());
+        return((amount*res0)/Res1); // return amount of token0 needed to buy token1
+    }
+
+    function getMySecondPrice(address pairAddress, uint amount) public view returns(uint) {
+        IUniswapV2Pair pair = IUniswapV2Pair(pairAddress);
+        IERC20 token0 = IERC20(pair.token0());
+        (uint Res0, uint Res1,) = pair.getReserves();
+
+        // decimals
+        uint res1 = Res1*(10**token0.decimals());
+        return((amount*res1)/Res0); // return amount of token0 needed to buy token1
     }
 }
