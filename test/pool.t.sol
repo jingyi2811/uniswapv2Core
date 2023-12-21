@@ -6,6 +6,7 @@ import '../src/IUniswapV2Pair.sol';
 
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
+import "../src/pool.sol";
 
 contract PoolTest is Test {
     address daiAddress = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
@@ -14,15 +15,19 @@ contract PoolTest is Test {
 
     IUniswapV2Factory factory;
     IUniswapV2Pair pair;
+    IUniswapV2Pool pool;
 
     function setUp() public {
         factory = IUniswapV2Factory(factoryAddress);
         pair = IUniswapV2Pair(factory.getPair(daiAddress, usdtAddress));
+        pool = IUniswapV2Pool(address(pair));
     }
 
     function testStablePool() public {
-        (uint112 x, uint112 y, )= pair.getReserves();
-        console.log(x);
-        console.log(y);
+        bytes memory encoded = abi.encode(pool);
+
+        UniswapV2PoolTokenPrice u = new UniswapV2PoolTokenPrice();
+        u.getPoolTokenPrice(address(0), 18, encoded);
+        u.getPoolTokenPrice1(address(0), 18, encoded);
     }
 }

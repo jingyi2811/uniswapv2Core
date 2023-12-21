@@ -6,6 +6,7 @@ pragma solidity 0.8.15;
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import "v3-core/contracts/libraries/FullMath.sol";
 import {FixedPointMathLib} from "lib/solmate/src/utils/FixedPointMathLib.sol";
+import "forge-std/console.sol";
 
 interface IUniswapV2Pool {
     function token0() external view returns (address);
@@ -88,6 +89,7 @@ contract UniswapV2PoolTokenPrice {
         uint8 outputDecimals_,
         bytes calldata params_
     ) external view returns (uint256) {
+
         // Prevent overflow
         if (outputDecimals_ > MAX_DECIMALS)
             revert UniswapV2_OutputDecimalsOutOfBounds(outputDecimals_, MAX_DECIMALS);
@@ -131,6 +133,8 @@ contract UniswapV2PoolTokenPrice {
                     revert UniswapV2_AssetDecimalsOutOfBounds(token0, token0Decimals, MAX_DECIMALS);
 
                 balance0 = uint256(balances[0]).mulDiv(10 ** outputDecimals_, 10 ** token0Decimals);
+
+                console.log('balance0 = ', balance0);
             }
 
             uint256 balance1;
@@ -140,6 +144,8 @@ contract UniswapV2PoolTokenPrice {
                     revert UniswapV2_AssetDecimalsOutOfBounds(token1, token1Decimals, MAX_DECIMALS);
 
                 balance1 = uint256(balances[1]).mulDiv(10 ** outputDecimals_, 10 ** token1Decimals);
+
+                console.log('balance1 = ', balance0);
             }
 
             if (balance0 == 0) revert UniswapV2_PoolTokenBalanceInvalid(address(pool), 0, balance0);
@@ -154,6 +160,8 @@ contract UniswapV2PoolTokenPrice {
             // Shift the pool supply into outputDecimals_
             uint8 poolDecimals = pool.decimals(); // Always 18
             poolSupply = poolSupply_.mulDiv(10 ** outputDecimals_, 10 ** poolDecimals);
+
+            console.log('poolSupply = ', poolSupply);
         }
 
         uint256 price0; // outputDecimals_
@@ -174,6 +182,115 @@ contract UniswapV2PoolTokenPrice {
 
             uint256 two = 2 * 10 ** outputDecimals_;
             poolValue = two.mulDiv(priceMultiple, poolSupply);
+
+            console.log('poolValue = ', poolValue);
+        }
+
+        return poolValue;
+    }
+
+    function getPoolTokenPrice1(
+        address,
+        uint8 outputDecimals_,
+        bytes calldata params_
+    ) external view returns (uint256) {
+
+        // Prevent overflow
+        if (outputDecimals_ > MAX_DECIMALS)
+            revert UniswapV2_OutputDecimalsOutOfBounds(outputDecimals_, MAX_DECIMALS);
+
+        address token0;
+        address token1;
+        uint256 k; // outputDecimals_
+        uint256 poolSupply; // outputDecimals_
+        {
+            IUniswapV2Pool pool;
+            {
+                // Decode params
+                UniswapV2PoolParams memory params = abi.decode(params_, (UniswapV2PoolParams));
+                if (address(params.pool) == address(0))
+                    revert UniswapV2_ParamsPoolInvalid(0, address(params.pool));
+
+                pool = IUniswapV2Pool(params.pool);
+            }
+
+            // Get balances
+            // Call this first as it will check on whether the pool is valid, and exit
+            uint112[] memory balances = _getReserves(pool);
+            if (balances.length < BALANCES_COUNT)
+                revert UniswapV2_PoolBalancesInvalid(
+                    address(pool),
+                    balances.length,
+                    BALANCES_COUNT
+                );
+
+            // Get tokens
+            token0 = pool.token0();
+            token1 = pool.token1();
+            if (token0 == address(0)) revert UniswapV2_PoolTokensInvalid(address(pool), 0, token0);
+            if (token1 == address(0)) revert UniswapV2_PoolTokensInvalid(address(pool), 1, token1);
+
+            // Convert balances to outputDecimals_
+            uint256 balance0;
+            {
+                uint8 token0Decimals = ERC20(token0).decimals();
+                if (token0Decimals > MAX_DECIMALS)
+                    revert UniswapV2_AssetDecimalsOutOfBounds(token0, token0Decimals, MAX_DECIMALS);
+
+                balance0 = balances[0];
+
+                console.log('balance0 = ', balance0);
+            }
+
+            uint256 balance1;
+            {
+                uint8 token1Decimals = ERC20(token1).decimals();
+                if (token1Decimals > MAX_DECIMALS)
+                    revert UniswapV2_AssetDecimalsOutOfBounds(token1, token1Decimals, MAX_DECIMALS);
+
+                balance1 = balances[1];
+
+                console.log('balance1 = ', balance0);
+            }
+
+            if (balance0 == 0) revert UniswapV2_PoolTokenBalanceInvalid(address(pool), 0, balance0);
+            if (balance1 == 0) revert UniswapV2_PoolTokenBalanceInvalid(address(pool), 1, balance1);
+
+            // Determine balance0 * balance1 = k
+            k = balance0.mulDiv(balance1, 10 ** outputDecimals_);
+
+            uint256 poolSupply_ = pool.totalSupply();
+            if (poolSupply_ == 0) revert UniswapV2_PoolSupplyInvalid(address(pool), poolSupply_);
+
+            // Shift the pool supply into outputDecimals_
+            uint8 poolDecimals = pool.decimals(); // Always 18
+            poolSupply = poolSupply_;
+
+            console.log('poolSupply = ', poolSupply);
+        }
+
+        uint256 price0; // outputDecimals_
+        uint256 price1; // outputDecimals_
+        {
+            uint256 price0_ = 1e18;
+            uint256 price1_ = 1e18;
+
+            price0 = price0_;
+            price1 = price1_;
+        }
+
+        uint256 poolValue; // outputDecimals_
+        {
+            uint256 priceMultiple = FixedPointMathLib.sqrt(
+                price0 * price1 * k
+            ); // sqrt(price * price) = outputDecimals_
+
+            uint256 two = 2 * 10 ** outputDecimals_;
+            poolValue = two.mulDiv(priceMultiple, poolSupply);
+
+            uint newPoolValue = poolValue.mulDiv(10 ** outputDecimals_, 10 ** 18);
+
+            console.log('poolValue = ', newPoolValue);
         }
 
         return poolValue;
